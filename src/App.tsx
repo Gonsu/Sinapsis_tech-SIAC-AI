@@ -24,6 +24,7 @@ import {
   UserRound,
   X,
 } from 'lucide-react'
+import { analyzeCodeCompliance, type EvaluationResultData } from './services/evaluationService'
 import './App.css'
 
 type EvaluationStatus = 'idle' | 'success' | 'attention'
@@ -270,7 +271,7 @@ function RightPanel() {
   )
 }
 
-function EvaluationResult({ status }: { status: EvaluationStatus }) {
+function EvaluationResult({ status, data }: { status: EvaluationStatus; data: EvaluationResultData | null }) {
   const isAttention = status === 'attention'
 
   return (
@@ -280,7 +281,7 @@ function EvaluationResult({ status }: { status: EvaluationStatus }) {
       </div>
       <div>
         <p className="result-title">{status === 'idle' ? 'Resultado de evaluación' : isAttention ? 'Hay algunos aspectos por revisar' : 'El código cumple con los requisitos'}</p>
-        <p className="result-copy">{status === 'idle' ? 'Aquí aparecerán las observaciones para orientar tu aprendizaje.' : isAttention ? 'Revisa las observaciones sugeridas y continúa mejorando tu solución.' : 'Tu solución presenta una estructura clara para el ejercicio propuesto.'}</p>
+        <p className="result-copy">{data ? data.summary : 'Aquí aparecerán las observaciones para orientar tu aprendizaje.'}</p>
       </div>
     </section>
   )
@@ -294,13 +295,27 @@ function App() {
   const [status, setStatus] = useState<EvaluationStatus>('idle')
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState({ statement: false, code: false })
+  const [evaluationData, setEvaluationData] = useState<EvaluationResultData | null>(null)
 
-  const handleEvaluate = () => {
+  const handleEvaluate = async () => {
     const nextErrors = { statement: !statement.trim(), code: !code.trim() }
     setErrors(nextErrors)
     if (nextErrors.statement || nextErrors.code) return
     setIsLoading(true)
-    window.setTimeout(() => { setIsLoading(false); setStatus(code.includes('TODO') ? 'attention' : 'success') }, 900)
+    try {
+      const result = await analyzeCodeCompliance({
+        statement,
+        code,
+        language,
+      })
+
+      setEvaluationData(result)
+      setStatus(result.isCompliant ? 'success' : 'attention')
+    } catch (error) {
+      console.error('Error durante la evaluación:', error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -403,7 +418,7 @@ function App() {
                 </div>
               </section>
 
-              <EvaluationResult status={status} />
+              <EvaluationResult status={status} data={evaluationData} />
             </div>
 
             <RightPanel />
