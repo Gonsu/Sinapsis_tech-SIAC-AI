@@ -24,6 +24,7 @@ import {
   UserRound,
   X,
 } from 'lucide-react'
+import { analyzeCodeCompliance, type EvaluationResultData } from './services/evaluationService'
 import './App.css'
 
 type EvaluationStatus = 'idle' | 'success' | 'attention'
@@ -298,10 +299,10 @@ function RightPanel() {
   )
 }
 
-function EvaluationResult({ status, validationPassed }: { status: EvaluationStatus; validationPassed?: boolean }) {
+function EvaluationResult({ status, validationPassed, data }: { status: EvaluationStatus; validationPassed?: boolean; data?: EvaluationResultData | null }) {
   const isAttention = status === 'attention'
 
-  if (validationPassed) {
+  if (validationPassed && data) {
     return (
       <section className="result-panel result-success">
         <div className="result-icon-wrap">
@@ -309,7 +310,7 @@ function EvaluationResult({ status, validationPassed }: { status: EvaluationStat
         </div>
         <div>
           <p className="result-title">Validación previa correcta</p>
-          <p className="result-copy">El enunciado y el código fuente cuentan con la información mínima requerida para continuar con el siguiente proceso.</p>
+          <p className="result-copy">{data.summary}</p>
         </div>
       </section>
     )
@@ -322,7 +323,15 @@ function EvaluationResult({ status, validationPassed }: { status: EvaluationStat
       </div>
       <div>
         <p className="result-title">{status === 'idle' ? 'Validación previa' : isAttention ? 'Hay algunos aspectos por revisar' : 'Validación previa correcta'}</p>
-        <p className="result-copy">{status === 'idle' ? 'Verifica que el enunciado y el código fuente tengan la información mínima antes de continuar.' : isAttention ? 'Revisa los campos requeridos antes de iniciar el siguiente proceso.' : 'La validación previa se completó correctamente.'}</p>
+        <p className="result-copy">
+          {data
+            ? data.summary
+            : status === 'idle'
+              ? 'Verifica que el enunciado y el código fuente tengan la información mínima antes de continuar.'
+              : isAttention
+                ? 'Revisa los campos requeridos antes de iniciar el siguiente proceso.'
+                : 'La validación previa se completó correctamente.'}
+        </p>
       </div>
     </section>
   )
@@ -337,10 +346,12 @@ function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [validationPassed, setValidationPassed] = useState(false)
   const [errors, setErrors] = useState<ValidationErrors>({})
+  const [evaluationData, setEvaluationData] = useState<EvaluationResultData | null>(null)
 
-  const handleEvaluate = () => {
+  const handleEvaluate = async () => {
     const nextErrors = validateEvaluationInput(statement, code)
     setErrors(nextErrors)
+    setEvaluationData(null)
     setValidationPassed(false)
 
     if (Object.keys(nextErrors).length > 0) {
@@ -349,11 +360,23 @@ function App() {
     }
 
     setIsLoading(true)
-    window.setTimeout(() => {
+
+    try {
+      const result = await analyzeCodeCompliance({
+        statement,
+        code,
+        language,
+      })
+
+      setEvaluationData(result)
+      setValidationPassed(result.isCompliant)
+      setStatus(result.isCompliant ? 'success' : 'attention')
+    } catch (error) {
+      console.error('Error durante la evaluación:', error)
+      setStatus('attention')
+    } finally {
       setIsLoading(false)
-      setStatus('success')
-      setValidationPassed(true)
-    }, 300)
+    }
   }
 
   return (
@@ -458,7 +481,7 @@ function App() {
                 </div>
               </section>
 
-              <EvaluationResult status={status} validationPassed={validationPassed} />
+              <EvaluationResult status={status} validationPassed={validationPassed} data={evaluationData} />
             </div>
 
             <RightPanel />
