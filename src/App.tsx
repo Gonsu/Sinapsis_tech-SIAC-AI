@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import {
   AlertCircle,
   Bell,
@@ -205,8 +205,9 @@ function WelcomeBanner() {
   )
 }
 
-function CodeEditor({ code, setCode, language }: { code: string; setCode: (value: string) => void; language: string }) {
+function CodeEditor({ code, setCode, language, fileName, onFileUpload,}: { code: string; setCode: (value: string) => void; language: string; fileName: string; onFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void}) {
   const lineCount = Math.max(code.split('\n').length, 12)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   return (
     <div className="code-editor">
@@ -219,8 +220,11 @@ function CodeEditor({ code, setCode, language }: { code: string; setCode: (value
         </div>
 
         <div className="editor-toolbar-actions">
-          <button type="button" className="editor-action"><Copy size={13} />Copiar</button>
-          <button type="button" className="editor-action"><Upload size={13} />Cargar archivo</button>
+          <button type="button" className="editor-action" onClick={() => navigator.clipboard.writeText(code)}> <Copy size={13} />Copiar</button>
+          <button type="button" className="editor-action" onClick={() => fileInputRef.current?.click()}> <Upload size={13} />Cargar archivo</button>
+          <input ref={fileInputRef} type="file" accept=".py,.js,.java,.cpp,.c,.txt" className="hidden" onChange={onFileUpload}
+          />
+
           <span className="editor-language-tag">{language}</span>
         </div>
       </div>
@@ -337,6 +341,14 @@ function EvaluationResult({ status, validationPassed, data }: { status: Evaluati
   )
 }
 
+const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
+  Python: ['.py'],
+  JavaScript: ['.js'],
+  Java: ['.java'],
+  'C++': ['.cpp', '.cc'],
+  C: ['.c'],
+}
+
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [statement, setStatement] = useState('')
@@ -347,6 +359,39 @@ function App() {
   const [validationPassed, setValidationPassed] = useState(false)
   const [errors, setErrors] = useState<ValidationErrors>({})
   const [evaluationData, setEvaluationData] = useState<EvaluationResultData | null>(null)
+  const [fileName, setFileName] = useState('solution.py')
+  const [fileError, setFileError] = useState('')
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const extension = '.' + file.name.split('.').pop()?.toLowerCase()
+    const allowedExtensions = LANGUAGE_EXTENSIONS[language] ?? []
+
+    if (!allowedExtensions.includes(extension)) {
+      setFileError(
+        `El archivo debe tener una extensión válida para ${language} (${allowedExtensions.join(', ')}).`
+      )
+      event.target.value = ''
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const content = e.target?.result as string
+      setCode(content)
+      setFileName(file.name)
+      setFileError('')
+      setErrors((current) => ({ ...current, code: false }))
+    }
+    reader.onerror = () => {
+      setFileError('No se pudo leer el archivo. Intenta nuevamente.')
+    }
+    reader.readAsText(file)
+
+    event.target.value = '' // permite volver a cargar el mismo archivo si es necesario
+  }
 
   const handleEvaluate = async () => {
     const nextErrors = validateEvaluationInput(statement, code)
@@ -451,15 +496,16 @@ function App() {
                   code={code}
                   setCode={(value) => {
                     setCode(value)
-                    setErrors((current) => ({ ...current, code: undefined }))
-                    setValidationPassed(false)
+                    setErrors((current) => ({ ...current, code: false }))
                   }}
                   language={language}
+                   fileName={fileName}
+                   onFileUpload={handleFileUpload}
                 />
 
-                {errors.code && (
+                {fileError && (
                   <p className="field-error">
-                    <AlertCircle size={14} />{errors.code}
+                    <AlertCircle size={14} />{fileError}
                   </p>
                 )}
 
