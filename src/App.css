@@ -726,6 +726,16 @@
   font-weight: 600;
 }
 
+.field-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .code-header-row {
   align-items: flex-start;
 }

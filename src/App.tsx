@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   AlertCircle,
   Bell,
@@ -32,6 +32,7 @@ type ValidationErrors = { statement?: string; code?: string }
 
 const MIN_STATEMENT_LENGTH = 20
 const MIN_CODE_LENGTH = 20
+const STATEMENT_DRAFT_KEY = 'siac-ai-statement-draft'
 
 const validateEvaluationInput = (statement: string, code: string): ValidationErrors => {
   const errors: ValidationErrors = {}
@@ -339,7 +340,21 @@ function EvaluationResult({ status, validationPassed, data }: { status: Evaluati
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [statement, setStatement] = useState('')
+  const [statement, setStatement] = useState(() => {
+    try{
+      return localStorage.getItem(STATEMENT_DRAFT_KEY)??''
+    }catch{
+      return ''
+    }
+  })
+  useEffect(() => {
+    try{
+      localStorage.setItem(STATEMENT_DRAFT_KEY, statement)
+    }catch{
+
+    }
+  }, [statement])
+
   const [language, setLanguage] = useState('Python')
   const [code, setCode] = useState('')
   const [status, setStatus] = useState<EvaluationStatus>('idle')
@@ -417,6 +432,12 @@ function App() {
 
                 <span className="counter-badge mobile-counter">{statement.length}/2000</span>
 
+                {!errors.statement && statement.trim().length > 0 && statement.trim().length < MIN_STATEMENT_LENGTH && (
+                  <p className="field-hint">
+                    Escribe {MIN_STATEMENT_LENGTH - statement.trim().length} caracteres más para completar el enunciado.
+                    </p>
+                  )}
+                  
                 {errors.statement && (
                   <p className="field-error">
                     <AlertCircle size={14} />{errors.statement}
