@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, type ChangeEvent } from 'react'
 import {
   AlertCircle,
   Bell,
@@ -27,7 +27,7 @@ import {
 import { analyzeCodeCompliance, type EvaluationResultData } from './services/evaluationService'
 import './App.css'
 
-type EvaluationStatus = 'idle' | 'success' | 'attention'
+type EvaluationStatus = 'idle' | 'invalid' | 'error' | 'evaluated'
 type ValidationErrors = { statement?: string; code?: string }
 
 const MIN_STATEMENT_LENGTH = 20
@@ -206,8 +206,9 @@ function WelcomeBanner() {
   )
 }
 
-function CodeEditor({ code, setCode, language }: { code: string; setCode: (value: string) => void; language: string }) {
+function CodeEditor({ code, setCode, language, fileName, onFileUpload,}: { code: string; setCode: (value: string) => void; language: string; fileName: string; onFileUpload: (event: ChangeEvent<HTMLInputElement>) => void}) {
   const lineCount = Math.max(code.split('\n').length, 12)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   return (
     <div className="code-editor">
@@ -216,12 +217,15 @@ function CodeEditor({ code, setCode, language }: { code: string; setCode: (value
           <span className="window-dot dot-red" />
           <span className="window-dot dot-yellow" />
           <span className="window-dot dot-green" />
-          <span className="editor-file-name">solution.py</span>
+          <span className="editor-file-name">{fileName}</span>
         </div>
 
         <div className="editor-toolbar-actions">
-          <button type="button" className="editor-action"><Copy size={13} />Copiar</button>
-          <button type="button" className="editor-action"><Upload size={13} />Cargar archivo</button>
+          <button type="button" className="editor-action" onClick={() => { navigator.clipboard?.writeText(code).catch(() => undefined) }}> <Copy size={13} />Copiar</button>
+          <button type="button" className="editor-action" onClick={() => fileInputRef.current?.click()}> <Upload size={13} />Cargar archivo</button>
+          <input ref={fileInputRef} type="file" accept={(LANGUAGE_EXTENSIONS[language] ?? []).join(',')} className="hidden" onChange={onFileUpload}
+          />
+
           <span className="editor-language-tag">{language}</span>
         </div>
       </div>
@@ -300,42 +304,83 @@ function RightPanel() {
   )
 }
 
-function EvaluationResult({ status, validationPassed, data }: { status: EvaluationStatus; validationPassed?: boolean; data?: EvaluationResultData | null }) {
-  const isAttention = status === 'attention'
+function EvaluationResult({ status, data, isOutdated, errorMessage }: { status: EvaluationStatus; data: EvaluationResultData | null; isOutdated: boolean; errorMessage: string }) {
+  if (status === 'evaluated' && data) {
+    const details = data.feedbackDetails
+    const practicesApplied = details?.goodPracticesApplied ?? []
+    const practicesMissing = details?.goodPracticesMissing ?? []
 
-  if (validationPassed && data) {
     return (
-      <section className="result-panel result-success">
+      <section className={`result-panel ${data.isCompliant ? 'result-success' : 'result-attention'}`} aria-live="polite">
         <div className="result-icon-wrap">
-          <CheckCircle2 size={19} className="text-[#3b8874]" />
+          {data.isCompliant ? <CheckCircle2 size={19} className="text-[#3b8874]" /> : <AlertCircle size={19} className="text-[#b56b24]" />}
         </div>
         <div>
-          <p className="result-title">Validación previa correcta</p>
+          <p className="result-title">
+            {data.isCompliant ? 'Tu solución cumple con el enunciado' : 'Tu solución aún no cumple con el enunciado'}
+          </p>
           <p className="result-copy">{data.summary}</p>
+
+          {details && (
+            <ul className="result-details">
+              {details.logic && <li><strong>Lógica:</strong> {details.logic}</li>}
+              {details.structure && <li><strong>Estructura:</strong> {details.structure}</li>}
+              {practicesApplied.length > 0 && <li><strong>Buenas prácticas aplicadas:</strong> {practicesApplied.join(', ')}</li>}
+              {practicesMissing.length > 0 && <li><strong>Buenas prácticas por mejorar:</strong> {practicesMissing.join(', ')}</li>}
+            </ul>
+          )}
+
+          {isOutdated && (
+            <p className="result-outdated">
+              Modificaste el enunciado o el código después de esta evaluación. Envíalo de nuevo para actualizar el resultado.
+            </p>
+          )}
+        </div>
+      </section>
+    )
+  }
+
+  if (status === 'error') {
+    return (
+      <section className="result-panel result-attention" aria-live="polite">
+        <div className="result-icon-wrap"><AlertCircle size={19} className="text-[#b56b24]" /></div>
+        <div>
+          <p className="result-title">No se pudo completar la evaluación</p>
+          <p className="result-copy">{errorMessage}</p>
+        </div>
+      </section>
+    )
+  }
+
+  if (status === 'invalid') {
+    return (
+      <section className="result-panel result-attention" aria-live="polite">
+        <div className="result-icon-wrap"><AlertCircle size={19} className="text-[#b56b24]" /></div>
+        <div>
+          <p className="result-title">Hay algunos aspectos por revisar</p>
+          <p className="result-copy">Revisa los campos marcados antes de enviar tu solución para evaluación.</p>
         </div>
       </section>
     )
   }
 
   return (
-    <section className={`result-panel ${isAttention ? 'result-attention' : status === 'success' ? 'result-success' : 'result-idle'}`}>
-      <div className="result-icon-wrap">
-        {status === 'idle' ? <Sparkles size={18} className="text-slate-500" /> : isAttention ? <AlertCircle size={19} className="text-[#b56b24]" /> : <CheckCircle2 size={19} className="text-[#3b8874]" />}
-      </div>
+    <section className="result-panel result-idle">
+      <div className="result-icon-wrap"><Sparkles size={18} className="text-slate-500" /></div>
       <div>
-        <p className="result-title">{status === 'idle' ? 'Validación previa' : isAttention ? 'Hay algunos aspectos por revisar' : 'Validación previa correcta'}</p>
-        <p className="result-copy">
-          {data
-            ? data.summary
-            : status === 'idle'
-              ? 'Verifica que el enunciado y el código fuente tengan la información mínima antes de continuar.'
-              : isAttention
-                ? 'Revisa los campos requeridos antes de iniciar el siguiente proceso.'
-                : 'La validación previa se completó correctamente.'}
-        </p>
+        <p className="result-title">Resultado de la evaluación</p>
+        <p className="result-copy">Escribe el enunciado y tu código, y envíalos para saber si tu solución cumple con lo solicitado.</p>
       </div>
     </section>
   )
+}
+
+const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
+  Python: ['.py'],
+  JavaScript: ['.js'],
+  Java: ['.java'],
+  'C++': ['.cpp', '.cc'],
+  C: ['.c'],
 }
 
 function App() {
@@ -359,18 +404,67 @@ function App() {
   const [code, setCode] = useState('')
   const [status, setStatus] = useState<EvaluationStatus>('idle')
   const [isLoading, setIsLoading] = useState(false)
-  const [validationPassed, setValidationPassed] = useState(false)
+  const [isOutdated, setIsOutdated] = useState(false)
+  const [evaluationError, setEvaluationError] = useState('')
   const [errors, setErrors] = useState<ValidationErrors>({})
   const [evaluationData, setEvaluationData] = useState<EvaluationResultData | null>(null)
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
+  const [fileError, setFileError] = useState('')
+
+  const fileName = uploadedFileName ?? `solution${LANGUAGE_EXTENSIONS[language]?.[0] ?? '.txt'}`
+
+  const handleClear = () => {
+    setStatement('')
+    setCode('')
+    setUploadedFileName(null)
+    setFileError('')
+    setErrors({})
+    setStatus('idle')
+    setEvaluationData(null)
+    setEvaluationError('')
+    setIsOutdated(false)
+  }
+
+  const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const extension = '.' + file.name.split('.').pop()?.toLowerCase()
+    const allowedExtensions = LANGUAGE_EXTENSIONS[language] ?? []
+
+    if (!allowedExtensions.includes(extension)) {
+      setFileError(
+        `El archivo debe tener una extensión válida para ${language} (${allowedExtensions.join(', ')}).`
+      )
+      event.target.value = ''
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const content = e.target?.result as string
+      setCode(content)
+      setUploadedFileName(file.name)
+      setFileError('')
+      setErrors((current) => ({ ...current, code: undefined }))
+      setIsOutdated(true)
+    }
+    reader.onerror = () => {
+      setFileError('No se pudo leer el archivo. Intenta nuevamente.')
+    }
+    reader.readAsText(file)
+
+    event.target.value = '' // permite volver a cargar el mismo archivo si es necesario
+  }
 
   const handleEvaluate = async () => {
     const nextErrors = validateEvaluationInput(statement, code)
     setErrors(nextErrors)
-    setEvaluationData(null)
-    setValidationPassed(false)
+    setEvaluationError('')
 
     if (Object.keys(nextErrors).length > 0) {
-      setStatus('attention')
+      setStatus('invalid')
+      setEvaluationData(null)
       return
     }
 
@@ -384,11 +478,13 @@ function App() {
       })
 
       setEvaluationData(result)
-      setValidationPassed(result.isCompliant)
-      setStatus(result.isCompliant ? 'success' : 'attention')
+      setIsOutdated(false)
+      setStatus('evaluated')
     } catch (error) {
       console.error('Error durante la evaluación:', error)
-      setStatus('attention')
+      setEvaluationData(null)
+      setEvaluationError(error instanceof Error ? error.message : 'Ocurrió un error inesperado. Intenta nuevamente.')
+      setStatus('error')
     } finally {
       setIsLoading(false)
     }
@@ -424,7 +520,7 @@ function App() {
                   onChange={(event) => {
                     setStatement(event.target.value)
                     setErrors((current) => ({ ...current, statement: undefined }))
-                    setValidationPassed(false)
+                    setIsOutdated(true)
                   }}
                   placeholder="Escribe aquí el enunciado del ejercicio..."
                   className={`input-field ${errors.statement ? 'input-error' : ''}`}
@@ -457,7 +553,11 @@ function App() {
 
                   <label className="language-select">
                     <span>Lenguaje</span>
-                    <select value={language} onChange={(event) => setLanguage(event.target.value)} aria-label="Seleccionar lenguaje">
+                    <select value={language} onChange={(event) => {
+                      setLanguage(event.target.value)
+                      setFileError('')
+                      setIsOutdated(true)
+                    }} aria-label="Seleccionar lenguaje">
                       <option>Python</option>
                       <option>JavaScript</option>
                       <option>Java</option>
@@ -473,9 +573,11 @@ function App() {
                   setCode={(value) => {
                     setCode(value)
                     setErrors((current) => ({ ...current, code: undefined }))
-                    setValidationPassed(false)
+                    setIsOutdated(true)
                   }}
                   language={language}
+                  fileName={fileName}
+                  onFileUpload={handleFileUpload}
                 />
 
                 {errors.code && (
@@ -484,8 +586,14 @@ function App() {
                   </p>
                 )}
 
+                {fileError && (
+                  <p className="field-error">
+                    <AlertCircle size={14} />{fileError}
+                  </p>
+                )}
+
                 <div className="action-row">
-                  <button type="button" className="secondary-button">
+                  <button type="button" className="secondary-button" onClick={handleClear} disabled={isLoading}>
                     <Trash2 size={15} />Limpiar
                   </button>
                   <button type="button" onClick={handleEvaluate} disabled={isLoading} className="primary-button">
@@ -502,7 +610,7 @@ function App() {
                 </div>
               </section>
 
-              <EvaluationResult status={status} validationPassed={validationPassed} data={evaluationData} />
+              <EvaluationResult status={status} data={evaluationData} isOutdated={isOutdated} errorMessage={evaluationError} />
             </div>
 
             <RightPanel />

@@ -988,6 +988,25 @@
   color: var(--text-soft);
 }
 
+.result-details {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-soft);
+}
+
+.result-details strong {
+  color: var(--text);
+}
+
+.result-outdated {
+  margin: 10px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b56b24;
+}
+
 .panel-languages {
   padding: 18px 18px 16px;
 }
