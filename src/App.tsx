@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
 import {
   AlertCircle,
   Bell,
   BookOpen,
   BrainCircuit,
+  Check,
   CheckCircle2,
   ChevronDown,
   Code2,
@@ -31,20 +32,57 @@ import {
   type EvaluationResultData,
   type ValidationErrors,
 } from '../shared/evaluation.ts'
+import { useDismiss } from './hooks/useDismiss'
 import { analyzeCodeCompliance } from './services/evaluationService'
+import {
+  clearAllLocalData,
+  clearDraft,
+  createHistoryEntry,
+  DEFAULT_SETTINGS,
+  loadDraft,
+  loadHistory,
+  loadSettings,
+  MAX_HISTORY_ENTRIES,
+  saveDraft,
+  saveHistory,
+  saveSettings,
+  type HistoryEntry,
+  type Settings as UserSettings,
+} from './services/localData'
+import { HistoryView } from './views/HistoryView'
+import { ResourcesView } from './views/ResourcesView'
+import { SettingsView } from './views/SettingsView'
 import './App.css'
 
 type EvaluationStatus = 'idle' | 'invalid' | 'error' | 'evaluated'
+type NavId = 'inicio' | 'evaluar' | 'historial' | 'recursos' | 'configuracion'
 
-const STATEMENT_DRAFT_KEY = 'siac-ai-statement-draft'
+type AppNotification = {
+  id: string
+  kind: 'success' | 'attention' | 'error'
+  title: string
+  text: string
+  date: string
+  read: boolean
+}
 
-const navigation = [
-  { label: 'Inicio', icon: LayoutDashboard, active: true },
-  { label: 'Evaluar código', icon: Code2, active: false },
-  { label: 'Historial', icon: History, active: false },
-  { label: 'Recursos', icon: BookOpen, active: false },
-  { label: 'Configuración', icon: Settings, active: false },
+const MAX_NOTIFICATIONS = 10
+
+const navigation: { id: NavId; label: string; icon: typeof LayoutDashboard }[] = [
+  { id: 'inicio', label: 'Inicio', icon: LayoutDashboard },
+  { id: 'evaluar', label: 'Evaluar código', icon: Code2 },
+  { id: 'historial', label: 'Historial', icon: History },
+  { id: 'recursos', label: 'Recursos', icon: BookOpen },
+  { id: 'configuracion', label: 'Configuración', icon: Settings },
 ]
+
+const viewTitles: Record<'historial' | 'recursos' | 'configuracion', { title: string; text: string }> = {
+  historial: { title: 'Historial', text: 'Consulta y vuelve a abrir tus evaluaciones anteriores.' },
+  recursos: { title: 'Recursos', text: 'Guías para aprovechar mejor la evaluación de tu código.' },
+  configuracion: { title: 'Configuración', text: 'Ajusta tus preferencias y revisa el estado del servicio.' },
+}
+
+const timeFormatter = new Intl.DateTimeFormat('es-CO', { hour: 'numeric', minute: '2-digit' })
 
 function SiacMark({ light = false, className = '' }: { light?: boolean; className?: string }) {
   return (
@@ -54,7 +92,7 @@ function SiacMark({ light = false, className = '' }: { light?: boolean; classNam
   )
 }
 
-function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+function Sidebar({ open, onClose, activeNav, onNavigate, displayName }: { open: boolean; onClose: () => void; activeNav: NavId; onNavigate: (id: NavId) => void; displayName: string }) {
   return (
     <>
       {open && <button className="sidebar-backdrop lg:hidden" onClick={onClose} aria-label="Cerrar menú" />}
@@ -77,13 +115,22 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
         <div className="sidebar-label">Menú principal</div>
 
         <nav className="sidebar-nav">
-          {navigation.map(({ label, icon: Icon, active }) => (
-            <button key={label} className={`nav-item ${active ? 'nav-item-active' : ''}`} onClick={onClose}>
-              <span className="nav-item-icon"><Icon size={18} strokeWidth={active ? 2.2 : 1.8} /></span>
-              <span>{label}</span>
-              {active && <span className="nav-item-dot" />}
-            </button>
-          ))}
+          {navigation.map(({ id, label, icon: Icon }) => {
+            const active = id === activeNav
+            return (
+              <button
+                key={id}
+                type="button"
+                className={`nav-item ${active ? 'nav-item-active' : ''}`}
+                onClick={() => onNavigate(id)}
+                aria-current={active ? 'page' : undefined}
+              >
+                <span className="nav-item-icon"><Icon size={18} strokeWidth={active ? 2.2 : 1.8} /></span>
+                <span>{label}</span>
+                {active && <span className="nav-item-dot" />}
+              </button>
+            )
+          })}
         </nav>
 
         <div className="sidebar-card">
@@ -102,22 +149,129 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
           <p className="sidebar-card-text">Formando profesionales para<br />transformar el futuro.</p>
         </div>
 
-        <div className="sidebar-user">
+        <button type="button" className="sidebar-user" onClick={() => onNavigate('configuracion')} title="Ir a Configuración">
           <div className="avatar avatar-sidebar">
             <UserRound size={16} />
           </div>
           <div className="sidebar-user-copy">
-            <p>Juan David Pérez</p>
+            <p>{displayName}</p>
             <span>Estudiante</span>
           </div>
-          <ChevronDown size={15} className="sidebar-user-chevron" />
-        </div>
+          <Settings size={15} className="sidebar-user-chevron" />
+        </button>
       </aside>
     </>
   )
 }
 
-function Header({ onMenu }: { onMenu: () => void }) {
+function NotificationsMenu({ notifications, onOpen, onClear }: { notifications: AppNotification[]; onOpen: () => void; onClear: () => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const close = useCallback(() => setOpen(false), [])
+  useDismiss(ref, open, close)
+
+  const unread = notifications.some((notification) => !notification.read)
+
+  return (
+    <div className="dropdown-wrap" ref={ref}>
+      <button
+        type="button"
+        className="notification-button"
+        aria-label={unread ? 'Notificaciones (hay notificaciones sin leer)' : 'Notificaciones'}
+        aria-expanded={open}
+        onClick={() => {
+          if (!open) onOpen()
+          setOpen(!open)
+        }}
+      >
+        <Bell size={19} />
+        {unread && <span />}
+      </button>
+
+      {open && (
+        <div className="dropdown-panel notifications-panel" role="dialog" aria-label="Notificaciones">
+          <div className="dropdown-header">
+            <p>Notificaciones</p>
+            {notifications.length > 0 && (
+              <button type="button" className="link-button" onClick={onClear}>Limpiar</button>
+            )}
+          </div>
+
+          {notifications.length === 0 ? (
+            <p className="dropdown-empty">No tienes notificaciones. Aquí verás el resultado de tus evaluaciones.</p>
+          ) : (
+            <ul className="notification-list">
+              {notifications.map((notification) => (
+                <li key={notification.id} className={`notification-item notification-${notification.kind}`}>
+                  {notification.kind === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                  <div>
+                    <p className="notification-title">{notification.title}</p>
+                    <p className="notification-text">{notification.text}</p>
+                    <p className="notification-time">{timeFormatter.format(new Date(notification.date))}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function UserMenu({ displayName, onNavigate }: { displayName: string; onNavigate: (id: NavId) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const close = useCallback(() => setOpen(false), [])
+  useDismiss(ref, open, close)
+
+  const go = (id: NavId) => {
+    setOpen(false)
+    onNavigate(id)
+  }
+
+  return (
+    <div className="dropdown-wrap" ref={ref}>
+      <button type="button" className="user-menu-button" aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen(!open)}>
+        <div className="avatar avatar-header">
+          <UserRound size={16} />
+        </div>
+        <span className="user-name">{displayName}</span>
+        <ChevronDown size={15} className={`user-chevron ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="dropdown-panel user-panel" role="menu">
+          <div className="dropdown-header">
+            <p>{displayName}</p>
+          </div>
+          <button type="button" role="menuitem" className="dropdown-item" onClick={() => go('historial')}>
+            <History size={15} />Mi historial
+          </button>
+          <button type="button" role="menuitem" className="dropdown-item" onClick={() => go('configuracion')}>
+            <Settings size={15} />Configuración
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Header({
+  onMenu,
+  displayName,
+  notifications,
+  onOpenNotifications,
+  onClearNotifications,
+  onNavigate,
+}: {
+  onMenu: () => void
+  displayName: string
+  notifications: AppNotification[]
+  onOpenNotifications: () => void
+  onClearNotifications: () => void
+  onNavigate: (id: NavId) => void
+}) {
   return (
     <header className="topbar">
       <div className="header-branding">
@@ -145,26 +299,19 @@ function Header({ onMenu }: { onMenu: () => void }) {
       </div>
 
       <div className="topbar-actions">
-        <button className="notification-button" aria-label="Notificaciones">
-          <Bell size={19} />
-          <span />
-        </button>
-        <div className="avatar avatar-header">
-          <UserRound size={16} />
-        </div>
-        <span className="user-name">Estudiante</span>
-        <ChevronDown size={15} className="user-chevron" />
+        <NotificationsMenu notifications={notifications} onOpen={onOpenNotifications} onClear={onClearNotifications} />
+        <UserMenu displayName={displayName} onNavigate={onNavigate} />
       </div>
     </header>
   )
 }
 
-function WelcomeBanner() {
+function WelcomeBanner({ displayName }: { displayName: string }) {
   return (
     <section className="welcome-banner">
       <div className="welcome-content">
         <p className="welcome-label">Espacio de aprendizaje</p>
-        <h1>¡Hola, Estudiante!</h1>
+        <h1>¡Hola, {displayName}!</h1>
         <p>
           Ingresa el enunciado y tu código fuente para recibir una evaluación y retroalimentación inmediata.
         </p>
@@ -186,9 +333,32 @@ function WelcomeBanner() {
   )
 }
 
+function ViewHeader({ title, text }: { title: string; text: string }) {
+  return (
+    <section className="view-header">
+      <h1>{title}</h1>
+      <p>{text}</p>
+    </section>
+  )
+}
+
 function CodeEditor({ code, setCode, language, fileName, onFileUpload,}: { code: string; setCode: (value: string) => void; language: string; fileName: string; onFileUpload: (event: ChangeEvent<HTMLInputElement>) => void}) {
   const lineCount = Math.max(code.split('\n').length, 12)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(false), 2000)
+    return () => clearTimeout(timer)
+  }, [copied])
+
+  const handleCopy = () => {
+    navigator.clipboard
+      ?.writeText(code)
+      .then(() => setCopied(true))
+      .catch(() => undefined)
+  }
 
   return (
     <div className="code-editor">
@@ -201,7 +371,9 @@ function CodeEditor({ code, setCode, language, fileName, onFileUpload,}: { code:
         </div>
 
         <div className="editor-toolbar-actions">
-          <button type="button" className="editor-action" onClick={() => { navigator.clipboard?.writeText(code).catch(() => undefined) }}> <Copy size={13} />Copiar</button>
+          <button type="button" className="editor-action" onClick={handleCopy} disabled={!code}>
+            {copied ? <><Check size={13} />Copiado</> : <><Copy size={13} />Copiar</>}
+          </button>
           <button type="button" className="editor-action" onClick={() => fileInputRef.current?.click()}> <Upload size={13} />Cargar archivo</button>
           <input ref={fileInputRef} type="file" accept={(LANGUAGE_EXTENSIONS[language] ?? []).join(',')} className="hidden" onChange={onFileUpload}
           />
@@ -383,22 +555,23 @@ const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [statement, setStatement] = useState(() => {
-    try{
-      return localStorage.getItem(STATEMENT_DRAFT_KEY)??''
-    }catch{
-      return ''
-    }
-  })
+  const [settings, setSettings] = useState<UserSettings>(loadSettings)
+  const [history, setHistory] = useState<HistoryEntry[]>(loadHistory)
+  const [notifications, setNotifications] = useState<AppNotification[]>([])
+  const [activeNav, setActiveNav] = useState<NavId>('inicio')
+  const statementRef = useRef<HTMLTextAreaElement>(null)
+  const pendingFocus = useRef(false)
+
+  const [statement, setStatement] = useState(() => (settings.saveDraft ? loadDraft() : ''))
   useEffect(() => {
-    try{
-      localStorage.setItem(STATEMENT_DRAFT_KEY, statement)
-    }catch{
+    if (settings.saveDraft) saveDraft(statement)
+    else clearDraft()
+  }, [statement, settings.saveDraft])
 
-    }
-  }, [statement])
+  useEffect(() => saveSettings(settings), [settings])
+  useEffect(() => saveHistory(history), [history])
 
-  const [language, setLanguage] = useState('Python')
+  const [language, setLanguage] = useState(settings.defaultLanguage)
   const [code, setCode] = useState('')
   const [status, setStatus] = useState<EvaluationStatus>('idle')
   const [isLoading, setIsLoading] = useState(false)
@@ -414,6 +587,7 @@ function App() {
   const handleClear = () => {
     setStatement('')
     setCode('')
+    setLanguage(settings.defaultLanguage)
     setUploadedFileName(null)
     setFileError('')
     setErrors({})
@@ -421,6 +595,48 @@ function App() {
     setEvaluationData(null)
     setEvaluationError('')
     setIsOutdated(false)
+  }
+
+  const handleNavigate = (id: NavId) => {
+    setActiveNav(id)
+    setSidebarOpen(false)
+    if (id === 'evaluar') pendingFocus.current = true
+    else window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // "Evaluar código" lleva al formulario una vez que la vista de evaluación está en pantalla.
+  useEffect(() => {
+    if (activeNav !== 'evaluar' || !pendingFocus.current) return
+    pendingFocus.current = false
+    statementRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    statementRef.current?.focus({ preventScroll: true })
+  })
+
+  const notify = (notification: Omit<AppNotification, 'id' | 'date' | 'read'>) => {
+    setNotifications((current) => [
+      { ...notification, id: crypto.randomUUID(), date: new Date().toISOString(), read: false },
+      ...current,
+    ].slice(0, MAX_NOTIFICATIONS))
+  }
+
+  const handleOpenHistoryEntry = (entry: HistoryEntry) => {
+    setStatement(entry.statement)
+    setCode(entry.code)
+    setLanguage(entry.language)
+    setUploadedFileName(entry.fileName)
+    setErrors({})
+    setFileError('')
+    setEvaluationError('')
+    setEvaluationData(entry.result)
+    setStatus('evaluated')
+    setIsOutdated(false)
+    handleNavigate('evaluar')
+  }
+
+  const handleClearLocalData = () => {
+    clearAllLocalData()
+    setHistory([])
+    setSettings(DEFAULT_SETTINGS)
   }
 
   const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
@@ -478,11 +694,23 @@ function App() {
       setEvaluationData(result)
       setIsOutdated(false)
       setStatus('evaluated')
+
+      if (settings.saveHistory) {
+        const entry = createHistoryEntry({ statement, code, language, fileName: uploadedFileName, result })
+        setHistory((current) => [entry, ...current].slice(0, MAX_HISTORY_ENTRIES))
+      }
+      notify(
+        result.isCompliant
+          ? { kind: 'success', title: 'Tu solución cumple', text: `Evaluación en ${language} completada.` }
+          : { kind: 'attention', title: 'Tu solución aún no cumple', text: `Revisa los requisitos pendientes de tu código en ${language}.` },
+      )
     } catch (error) {
       console.error('Error durante la evaluación:', error)
       setEvaluationData(null)
-      setEvaluationError(error instanceof Error ? error.message : 'Ocurrió un error inesperado. Intenta nuevamente.')
+      const message = error instanceof Error ? error.message : 'Ocurrió un error inesperado. Intenta nuevamente.'
+      setEvaluationError(message)
       setStatus('error')
+      notify({ kind: 'error', title: 'No se pudo completar la evaluación', text: message })
     } finally {
       setIsLoading(false)
     }
@@ -490,13 +718,28 @@ function App() {
 
   return (
     <div className="app-shell">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        activeNav={activeNav}
+        onNavigate={handleNavigate}
+        displayName={settings.displayName}
+      />
 
       <div className="main-panel">
-        <Header onMenu={() => setSidebarOpen(true)} />
+        <Header
+          onMenu={() => setSidebarOpen(true)}
+          displayName={settings.displayName}
+          notifications={notifications}
+          onOpenNotifications={() => setNotifications((current) => current.map((notification) => ({ ...notification, read: true })))}
+          onClearNotifications={() => setNotifications([])}
+          onNavigate={handleNavigate}
+        />
 
         <main className="main-content">
-          <WelcomeBanner />
+          {activeNav === 'inicio' || activeNav === 'evaluar' ? (
+          <>
+          <WelcomeBanner displayName={settings.displayName} />
 
           <div className="content-grid">
             <div className="content-main-column">
@@ -513,6 +756,7 @@ function App() {
                 </div>
 
                 <textarea
+                  ref={statementRef}
                   maxLength={2000}
                   value={statement}
                   onChange={(event) => {
@@ -609,6 +853,26 @@ function App() {
 
             <RightPanel />
           </div>
+          </>
+          ) : (
+            <div className="view-container">
+              <ViewHeader {...viewTitles[activeNav]} />
+              {activeNav === 'historial' && (
+                <HistoryView
+                  entries={history}
+                  saveHistoryEnabled={settings.saveHistory}
+                  onOpen={handleOpenHistoryEntry}
+                  onDelete={(id) => setHistory((current) => current.filter((entry) => entry.id !== id))}
+                  onClearAll={() => setHistory([])}
+                  onGoToSettings={() => handleNavigate('configuracion')}
+                />
+              )}
+              {activeNav === 'recursos' && <ResourcesView />}
+              {activeNav === 'configuracion' && (
+                <SettingsView settings={settings} onChange={setSettings} onClearLocalData={handleClearLocalData} />
+              )}
+            </div>
+          )}
         </main>
 
         <footer className="footer">
