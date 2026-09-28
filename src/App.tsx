@@ -24,39 +24,19 @@ import {
   UserRound,
   X,
 } from 'lucide-react'
-import { analyzeCodeCompliance, type EvaluationResultData } from './services/evaluationService'
+import {
+  MIN_STATEMENT_LENGTH,
+  SUPPORTED_LANGUAGES,
+  validateEvaluationInput,
+  type EvaluationResultData,
+  type ValidationErrors,
+} from '../shared/evaluation.ts'
+import { analyzeCodeCompliance } from './services/evaluationService'
 import './App.css'
 
 type EvaluationStatus = 'idle' | 'invalid' | 'error' | 'evaluated'
-type ValidationErrors = { statement?: string; code?: string }
 
-const MIN_STATEMENT_LENGTH = 20
-const MIN_CODE_LENGTH = 20
 const STATEMENT_DRAFT_KEY = 'siac-ai-statement-draft'
-
-const validateEvaluationInput = (statement: string, code: string): ValidationErrors => {
-  const errors: ValidationErrors = {}
-  const normalizedStatement = statement.trim()
-  const normalizedCode = code.trim()
-
-  if (!statement || typeof statement !== 'string') {
-    errors.statement = 'El enunciado es obligatorio.'
-  } else if (normalizedStatement.length === 0) {
-    errors.statement = 'El enunciado no puede estar vacío o contener solo espacios.'
-  } else if (normalizedStatement.length < MIN_STATEMENT_LENGTH) {
-    errors.statement = 'El enunciado debe contener información suficiente para iniciar la evaluación.'
-  }
-
-  if (!code || typeof code !== 'string') {
-    errors.code = 'El código fuente es obligatorio.'
-  } else if (normalizedCode.length === 0) {
-    errors.code = 'El código fuente no puede estar vacío o contener solo espacios.'
-  } else if (normalizedCode.length < MIN_CODE_LENGTH) {
-    errors.code = 'El código fuente debe contener contenido mínimo para poder continuar.'
-  }
-
-  return errors
-}
 
 const navigation = [
   { label: 'Inicio', icon: LayoutDashboard, active: true },
@@ -285,7 +265,7 @@ function RightPanel() {
           <h2>Ejemplos de lenguajes soportados</h2>
         </div>
         <div className="language-list">
-          {['Python', 'JavaScript', 'Java', 'C++', 'C'].map((item) => (
+          {SUPPORTED_LANGUAGES.map((item) => (
             <span className="language-tag" key={item}>
               <span className="language-dot" />
               {item}
@@ -320,6 +300,24 @@ function EvaluationResult({ status, data, isOutdated, errorMessage }: { status: 
             {data.isCompliant ? 'Tu solución cumple con el enunciado' : 'Tu solución aún no cumple con el enunciado'}
           </p>
           <p className="result-copy">{data.summary}</p>
+
+          {data.mode === 'mock' && (
+            <p className="result-mode-badge">Modo de prueba · sin IA</p>
+          )}
+
+          {data.requirements.length > 0 && (
+            <ul className="requirement-list">
+              {data.requirements.map((requirement, index) => (
+                <li key={index} className={requirement.met ? 'requirement-met' : 'requirement-unmet'}>
+                  {requirement.met ? <CheckCircle2 size={14} /> : <X size={14} />}
+                  <div>
+                    <p className="requirement-title">{requirement.description}</p>
+                    <p className="requirement-evidence">{requirement.evidence}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
 
           {details && (
             <ul className="result-details">
@@ -558,11 +556,7 @@ function App() {
                       setFileError('')
                       setIsOutdated(true)
                     }} aria-label="Seleccionar lenguaje">
-                      <option>Python</option>
-                      <option>JavaScript</option>
-                      <option>Java</option>
-                      <option>C++</option>
-                      <option>C</option>
+                      {SUPPORTED_LANGUAGES.map((item) => <option key={item}>{item}</option>)}
                     </select>
                     <ChevronDown size={14} className="select-chevron" />
                   </label>

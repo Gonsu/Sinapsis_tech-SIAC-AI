@@ -1,56 +1,30 @@
-export interface EvaluationInput {
-  statement: string;
-  code: string;
-  language: string;
-}
+import type { EvaluationInput, EvaluationResultData } from '../../shared/evaluation.ts'
 
-export interface EvaluationResultData {
-  isCompliant: boolean;
-  summary: string;
-  feedbackDetails?: {
-    logic?: string;
-    structure?: string;
-    goodPracticesApplied?: string[];
-    goodPracticesMissing?: string[];
-  };
-}
+const REQUEST_TIMEOUT_MS = 120_000
 
-export async function analyzeCodeCompliance(
-  input: EvaluationInput
-): Promise<EvaluationResultData> {
-  const { statement, code, language } = input;
-
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
-  const cleanCode = code.trim();
-  const cleanStatement = statement.trim();
-
-  if (!cleanCode || !cleanStatement) {
-    throw new Error('El enunciado y el código fuente son obligatorios para el análisis.');
+// RF-3: envía el enunciado y el código al servidor Express, que hace el análisis (RF-5).
+export async function analyzeCodeCompliance(input: EvaluationInput): Promise<EvaluationResultData> {
+  let response: Response
+  try {
+    response = await fetch('/api/evaluate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      throw new Error('El análisis tardó demasiado. Intenta nuevamente.', { cause: error })
+    }
+    throw new Error('No se pudo conectar con el servidor de evaluación. Verifica que esté en ejecución (npm run dev).', { cause: error })
   }
 
-  
-  const hasTodo = /TODO/i.test(cleanCode);
-  const isTooShort = cleanCode.length < 15;
-  const isPass = !hasTodo && !isTooShort;
+  const data = await response.json().catch(() => null)
 
-  if (isPass) {
-    return {
-      isCompliant: true,
-      summary: `El código en ${language} analiza correctamente los requerimientos descritos en el enunciado. La solución presenta una estructura coherente y ejecutable.`,
-      feedbackDetails: {
-        logic: 'La lógica implementada responde al objetivo principal planteado.',
-        structure: 'El código presenta una estructura ordenada de instrucciones.',
-      },
-    };
+  if (!response.ok) {
+    const message = typeof data?.error === 'string' ? data.error : `El servidor respondió con un error (${response.status}).`
+    throw new Error(message)
   }
 
-  return {
-    isCompliant: false,
-    summary: `El código en ${language} requiere ajustes para cumplir con el enunciado. Se detectaron secciones incompletas o falta de lógica suficiente.`,
-    feedbackDetails: {
-      logic: 'Faltan instrucciones clave para completar la solución esperada.',
-      structure: 'Existen marcas pendientes (como TODO) o bloques incompletos.',
-    },
-  };
+  return data as EvaluationResultData
 }
