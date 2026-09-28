@@ -2,8 +2,8 @@ import type { EvaluationInput, EvaluationResultData, RequirementVerdict } from '
 import type { CodeEvaluator } from './types.ts'
 
 // Evaluador de pruebas: permite usar la app sin clave de API.
-// Es una heurística por palabras clave, NO un análisis real. Lo reemplaza ClaudeEvaluator
-// cuando se configura ANTHROPIC_API_KEY.
+// Es una heurística por palabras clave, NO un análisis real. Lo reemplaza un evaluador con IA
+// cuando se configura una clave de API (ver server/evaluators/providers.ts).
 
 const MAX_REQUIREMENTS = 6
 

@@ -20,7 +20,7 @@ export interface RequirementVerdict {
 }
 
 export interface EvaluationResultData {
-  /** 'ai' cuando respondió Claude; 'mock' cuando respondió el evaluador de pruebas. */
+  /** 'ai' cuando respondió un modelo de IA (Groq, Gemini o Claude); 'mock' cuando respondió el evaluador de pruebas. */
   mode: 'ai' | 'mock'
   isCompliant: boolean
   summary: string

@@ -3,6 +3,9 @@ import type { EvaluationInput, EvaluationResultData } from '../../shared/evaluat
 // RF-5: cualquier motor de análisis (IA real o simulador) implementa esta interfaz.
 export interface CodeEvaluator {
   readonly mode: EvaluationResultData['mode']
+  /** Proveedor y modelo de IA, para mostrarlos en /api/health. */
+  readonly provider?: string
+  readonly model?: string
   evaluate(input: EvaluationInput): Promise<EvaluationResultData>
 }
 
