@@ -3,7 +3,8 @@ import { BrainCircuit, ChevronDown, Server, Settings as SettingsIcon, Trash2 } f
 import { SUPPORTED_LANGUAGES } from '../../shared/evaluation.ts'
 import type { Settings } from '../services/localData'
 
-type ServerStatus = { state: 'loading' } | { state: 'online'; mode: 'ai' | 'mock' } | { state: 'offline' }
+type HealthResponse = { mode: 'ai' | 'mock'; provider?: string; model?: string }
+type ServerStatus = { state: 'loading' } | ({ state: 'online' } & HealthResponse) | { state: 'offline' }
 
 function ToggleRow({ label, description, checked, onChange }: { label: string; description: string; checked: boolean; onChange: (value: boolean) => void }) {
   return (
@@ -33,7 +34,7 @@ export function SettingsView({
     const controller = new AbortController()
     fetch('/api/health', { signal: controller.signal })
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error(String(response.status)))))
-      .then((data: { mode: 'ai' | 'mock' }) => setServerStatus({ state: 'online', mode: data.mode }))
+      .then((data: HealthResponse) => setServerStatus({ state: 'online', mode: data.mode, provider: data.provider, model: data.model }))
       .catch(() => {
         if (!controller.signal.aborted) setServerStatus({ state: 'offline' })
       })
@@ -118,10 +119,10 @@ export function SettingsView({
             <p><span className="status-dot status-offline" />Sin conexión con el servidor. Verifica que esté en ejecución (<code>npm run dev</code>).</p>
           )}
           {serverStatus.state === 'online' && serverStatus.mode === 'ai' && (
-            <p><span className="status-dot status-online" />Conectado · Análisis con inteligencia artificial activo.</p>
+            <p><span className="status-dot status-online" />Conectado · Análisis con inteligencia artificial activo{serverStatus.provider && <> ({serverStatus.provider}{serverStatus.model && <> · <code>{serverStatus.model}</code></>})</>}.</p>
           )}
           {serverStatus.state === 'online' && serverStatus.mode === 'mock' && (
-            <p><span className="status-dot status-mock" />Conectado · Modo de prueba (sin IA). Configura <code>ANTHROPIC_API_KEY</code> en el servidor para activar la IA.</p>
+            <p><span className="status-dot status-mock" />Conectado · Modo de prueba (sin IA). Configura una clave de IA (<code>GROQ_API_KEY</code>, <code>GEMINI_API_KEY</code> o <code>ANTHROPIC_API_KEY</code>) en el servidor para activar la IA.</p>
           )}
         </div>
       </section>

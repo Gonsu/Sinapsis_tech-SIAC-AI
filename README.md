@@ -8,6 +8,10 @@ Herramienta académica de la UFPS para que el estudiante revise si su solución 
 src/        Frontend (React + Vite + Tailwind)
 server/     API (Express) que realiza el análisis
   evaluators/mockEvaluator.ts    Evaluador de pruebas (sin IA, por palabras clave)
+  evaluators/providers.ts        Elige el evaluador según las claves del .env (y AI_PROVIDER)
+  evaluators/prompt.ts           Instrucciones y esquema de respuesta comunes a los evaluadores con IA
+  evaluators/groqEvaluator.ts    Evaluador con IA (Groq)
+  evaluators/geminiEvaluator.ts  Evaluador con IA (Gemini, de Google)
   evaluators/claudeEvaluator.ts  Evaluador con IA (Claude, de Anthropic)
   tests/                         Pruebas de la API y del evaluador
 shared/     Tipos y validaciones usados por el frontend y el servidor
@@ -36,8 +40,10 @@ Sin configuración, el servidor usa el **evaluador de pruebas**: un análisis si
 Para activar la IA:
 
 1. Copia `.env.example` como `.env`.
-2. Pega tu clave de API de Anthropic en `ANTHROPIC_API_KEY`.
+2. Pega tu clave de API en `GROQ_API_KEY` (Groq), `GEMINI_API_KEY` (Google AI Studio) o `ANTHROPIC_API_KEY` (Anthropic). Si configuras varias, se usa la primera en ese orden, salvo que indiques otra en `AI_PROVIDER` (`groq`, `gemini` o `claude`).
 3. Reinicia `npm run dev`. La consola del servidor mostrará `Modo IA activo`.
+
+Para no agotar la cuota del servicio de IA, cada IP puede enviar como máximo 10 evaluaciones por minuto; al superarlo la API responde 429.
 
 El archivo `.env` está en `.gitignore`: la clave nunca debe subirse al repositorio ni usarse en el frontend.
 

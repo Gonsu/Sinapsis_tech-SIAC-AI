@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
 import type { Server } from 'node:http'
 import { after, before, describe, it } from 'node:test'
-import { createApp } from '../app.ts'
+import { createApp, type AppOptions } from '../app.ts'
 import { MockEvaluator } from '../evaluators/mockEvaluator.ts'
 import { EvaluationError, type CodeEvaluator } from '../evaluators/types.ts'
 
@@ -12,9 +12,9 @@ const validBody = {
   language: 'Python',
 }
 
-const startServer = async (evaluator: CodeEvaluator) => {
+const startServer = async (evaluator: CodeEvaluator, options?: AppOptions) => {
   const server: Server = await new Promise((resolve) => {
-    const instance = createApp(evaluator).listen(0, () => resolve(instance))
+    const instance = createApp(evaluator, options).listen(0, () => resolve(instance))
   })
   const { port } = server.address() as AddressInfo
   return { server, url: `http://127.0.0.1:${port}` }
@@ -85,6 +85,43 @@ describe('API /api/evaluate con fallo del evaluador', () => {
       const response = await post(url, validBody)
       assert.equal(response.status, 503)
       assert.deepEqual(await response.json(), { error: 'Servicio no disponible' })
+    } finally {
+      server.close()
+    }
+  })
+})
+
+describe('API /api/evaluate con límite de solicitudes', () => {
+  it('responde 429 al superar el máximo de evaluaciones por IP', async () => {
+    const { server, url } = await startServer(new MockEvaluator({ delayMs: 0 }), { evaluationsPerWindow: 2 })
+
+    try {
+      assert.equal((await post(url, validBody)).status, 200)
+      assert.equal((await post(url, validBody)).status, 200)
+      const response = await post(url, validBody)
+      assert.equal(response.status, 429)
+      assert.match(((await response.json()) as { error: string }).error, /muchas evaluaciones/)
+    } finally {
+      server.close()
+    }
+  })
+})
+
+describe('API /api/health con un evaluador de IA', () => {
+  it('informa el proveedor y el modelo', async () => {
+    const aiEvaluator: CodeEvaluator = {
+      mode: 'ai',
+      provider: 'Groq',
+      model: 'openai/gpt-oss-120b',
+      evaluate: async () => {
+        throw new Error('no se usa')
+      },
+    }
+    const { server, url } = await startServer(aiEvaluator)
+
+    try {
+      const response = await fetch(`${url}/api/health`)
+      assert.deepEqual(await response.json(), { status: 'ok', mode: 'ai', provider: 'Groq', model: 'openai/gpt-oss-120b' })
     } finally {
       server.close()
     }
