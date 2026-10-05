@@ -16,7 +16,11 @@ export async function analyzeCodeCompliance(input: EvaluationInput): Promise<Eva
     if (error instanceof DOMException && error.name === 'TimeoutError') {
       throw new Error('El análisis tardó demasiado. Intenta nuevamente.', { cause: error })
     }
-    throw new Error('No se pudo conectar con el servidor de evaluación. Verifica que esté en ejecución (npm run dev).', { cause: error })
+    const isNetworkError = error instanceof TypeError
+    const message = isNetworkError
+      ? 'No se pudo conectar con el servidor de evaluación. Verifica que esté en ejecución (npm run dev).'
+      : 'Ocurrió un error al enviar la solicitud de evaluación. Intenta nuevamente.'
+    throw new Error(message, { cause: error })
   }
 
   const data = await response.json().catch(() => null)

@@ -33,7 +33,7 @@ const PROVIDER_NAMES = Object.keys(providers)
 export const createEvaluator = (env: Env): CodeEvaluator => {
   const requested = read(env, 'AI_PROVIDER')?.toLowerCase()
   if (requested) {
-    if (!Object.hasOwn(providers, requested)) {
+    if (!Object.hasOwn(providers, requested as any)) {
       throw new Error(`AI_PROVIDER="${requested}" no es válido. Usa: ${PROVIDER_NAMES.join(', ')}.`)
     }
     const evaluator = providers[requested as keyof typeof providers](env)
