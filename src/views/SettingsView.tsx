@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { BrainCircuit, ChevronDown, Server, Settings as SettingsIcon, Trash2 } from 'lucide-react'
-import { SUPPORTED_LANGUAGES } from '../../shared/evaluation.ts'
+import { BrainCircuit, Server, Settings as SettingsIcon, Trash2 } from 'lucide-react'
+import { LanguageSelect } from '../components/LanguageSelect'
 import type { Settings } from '../services/localData'
 
 type HealthResponse = { mode: 'ai' | 'mock'; provider?: string; model?: string }
@@ -77,12 +77,7 @@ export function SettingsView({
               <p className="settings-label">Lenguaje predeterminado</p>
               <p className="settings-description">Se selecciona al abrir la app y al limpiar el formulario.</p>
             </div>
-            <span className="language-select settings-select">
-              <select value={settings.defaultLanguage} onChange={(event) => update({ defaultLanguage: event.target.value })} aria-label="Lenguaje predeterminado">
-                {SUPPORTED_LANGUAGES.map((item) => <option key={item}>{item}</option>)}
-              </select>
-              <ChevronDown size={14} className="select-chevron" />
-            </span>
+            <LanguageSelect label={false} value={settings.defaultLanguage} onChange={(defaultLanguage) => update({ defaultLanguage })} />
           </label>
 
           <ToggleRow

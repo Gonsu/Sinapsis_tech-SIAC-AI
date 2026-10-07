@@ -47,6 +47,7 @@ import {
 import { HistoryView } from './views/HistoryView'
 import { ResourcesView } from './views/ResourcesView'
 import { SettingsView } from './views/SettingsView'
+import { LanguageSelect } from './components/LanguageSelect'
 import { CodeEditor } from './components/CodeEditor'
 import { EvaluationResult, type EvaluationStatus } from './components/EvaluationResult'
 import './App.css'
@@ -293,13 +294,13 @@ function Header({
 
         <div className="header-divider" />
 
-        <div className="siac-brand">
+        <button type="button" className="siac-brand" onClick={() => onNavigate('inicio')} aria-label="Ir al inicio" title="Ir al inicio">
           <SiacMark className="siac-mark-header" />
           <div className="siac-brand-copy">
             <p className="siac-brand-title">SIAC-IA</p>
             <p className="siac-brand-subtitle">Evaluación y retroalimentación de código con inteligencia artificial</p>
           </div>
-        </div>
+        </button>
       </div>
 
       <div className="topbar-actions">
@@ -663,17 +664,14 @@ function App() {
                     </div>
                   </div>
 
-                  <label className="language-select">
-                    <span>Lenguaje</span>
-                    <select value={language} onChange={(event) => {
-                      setLanguage(event.target.value)
+                  <LanguageSelect
+                    value={language}
+                    onChange={(item) => {
+                      setLanguage(item)
                       setFileError('')
                       setIsOutdated(true)
-                    }} aria-label="Seleccionar lenguaje">
-                      {SUPPORTED_LANGUAGES.map((item) => <option key={item}>{item}</option>)}
-                    </select>
-                    <ChevronDown size={14} className="select-chevron" />
-                  </label>
+                    }}
+                  />
                 </div>
 
                 <CodeEditor
