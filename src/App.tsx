@@ -4,26 +4,21 @@ import {
   Bell,
   BookOpen,
   BrainCircuit,
-  Check,
   CheckCircle2,
   ChevronDown,
   Code2,
-  Copy,
   FileText,
   History,
   LayoutDashboard,
   Lightbulb,
   LoaderCircle,
-  Menu,
   MessageCircle,
   Send,
   Settings,
   ShieldCheck,
   Sparkles,
   Trash2,
-  Upload,
   UserRound,
-  X,
 } from 'lucide-react'
 import {
   MIN_STATEMENT_LENGTH,
@@ -52,9 +47,10 @@ import {
 import { HistoryView } from './views/HistoryView'
 import { ResourcesView } from './views/ResourcesView'
 import { SettingsView } from './views/SettingsView'
+import { CodeEditor } from './components/CodeEditor'
+import { EvaluationResult, type EvaluationStatus } from './components/EvaluationResult'
 import './App.css'
 
-type EvaluationStatus = 'idle' | 'invalid' | 'error' | 'evaluated'
 type NavId = 'inicio' | 'evaluar' | 'historial' | 'recursos' | 'configuracion'
 
 type AppNotification = {
@@ -92,7 +88,19 @@ function SiacMark({ light = false, className = '' }: { light?: boolean; classNam
   )
 }
 
-function Sidebar({ open, onClose, activeNav, onNavigate, displayName }: { open: boolean; onClose: () => void; activeNav: NavId; onNavigate: (id: NavId) => void; displayName: string }) {
+function Sidebar({
+  open,
+  onClose,
+  activeNav,
+  onNavigate,
+  displayName,
+}: {
+  open: boolean
+  onClose: () => void
+  activeNav: NavId
+  onNavigate: (id: NavId) => void
+  displayName: string
+}) {
   return (
     <>
       {open && <button className="sidebar-backdrop lg:hidden" onClick={onClose} aria-label="Cerrar menú" />}
@@ -101,13 +109,13 @@ function Sidebar({ open, onClose, activeNav, onNavigate, displayName }: { open: 
           <div className="sidebar-branding">
             <SiacMark light className="siac-mark-sidebar" />
             <div className="sidebar-brand-copy">
-              <p className="sidebar-brand-title">SIAC<span>-IA</span></p>
+              <p className="sidebar-brand-title">
+                SIAC<span>-IA</span>
+              </p>
               <p className="sidebar-brand-subtitle">Aprendizaje inteligente</p>
             </div>
           </div>
-          <button className="sidebar-close icon-button lg:hidden" onClick={onClose} aria-label="Cerrar menú">
-            <X size={19} />
-          </button>
+
         </div>
 
         <div className="sidebar-divider" />
@@ -258,14 +266,12 @@ function UserMenu({ displayName, onNavigate }: { displayName: string; onNavigate
 }
 
 function Header({
-  onMenu,
   displayName,
   notifications,
   onOpenNotifications,
   onClearNotifications,
   onNavigate,
 }: {
-  onMenu: () => void
   displayName: string
   notifications: AppNotification[]
   onOpenNotifications: () => void
@@ -275,9 +281,7 @@ function Header({
   return (
     <header className="topbar">
       <div className="header-branding">
-        <button className="icon-button menu-button lg:hidden" onClick={onMenu} aria-label="Abrir menú">
-          <Menu size={21} />
-        </button>
+
 
         <div className="ufps-brand">
           <img src="/ufps-logo.png" alt="Universidad Francisco de Paula Santander" className="ufps-logo" />
@@ -342,62 +346,7 @@ function ViewHeader({ title, text }: { title: string; text: string }) {
   )
 }
 
-function CodeEditor({ code, setCode, language, fileName, onFileUpload,}: { code: string; setCode: (value: string) => void; language: string; fileName: string; onFileUpload: (event: ChangeEvent<HTMLInputElement>) => void}) {
-  const lineCount = Math.max(code.split('\n').length, 12)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [copied, setCopied] = useState(false)
 
-  useEffect(() => {
-    if (!copied) return
-    const timer = setTimeout(() => setCopied(false), 2000)
-    return () => clearTimeout(timer)
-  }, [copied])
-
-  const handleCopy = () => {
-    navigator.clipboard
-      ?.writeText(code)
-      .then(() => setCopied(true))
-      .catch(() => undefined)
-  }
-
-  return (
-    <div className="code-editor">
-      <div className="editor-toolbar">
-        <div className="editor-window-controls">
-          <span className="window-dot dot-red" />
-          <span className="window-dot dot-yellow" />
-          <span className="window-dot dot-green" />
-          <span className="editor-file-name">{fileName}</span>
-        </div>
-
-        <div className="editor-toolbar-actions">
-          <button type="button" className="editor-action" onClick={handleCopy} disabled={!code}>
-            {copied ? <><Check size={13} />Copiado</> : <><Copy size={13} />Copiar</>}
-          </button>
-          <button type="button" className="editor-action" onClick={() => fileInputRef.current?.click()}> <Upload size={13} />Cargar archivo</button>
-          <input ref={fileInputRef} type="file" accept={(LANGUAGE_EXTENSIONS[language] ?? []).join(',')} className="hidden" onChange={onFileUpload}
-          />
-
-          <span className="editor-language-tag">{language}</span>
-        </div>
-      </div>
-
-      <div className="editor-body">
-        <div className="line-numbers">
-          {Array.from({ length: lineCount }, (_, index) => <div key={index}>{index + 1}</div>)}
-        </div>
-        <textarea
-          value={code}
-          onChange={(event) => setCode(event.target.value)}
-          spellCheck={false}
-          aria-label="Editor de código"
-          placeholder="# Escribe aquí tu solución..."
-          className="code-textarea"
-        />
-      </div>
-    </div>
-  )
-}
 
 const benefits = [
   { title: 'Análisis del código', text: 'Detecta errores y posibles mejoras en tu solución.', icon: Code2, color: 'soft-red' },
@@ -456,102 +405,9 @@ function RightPanel() {
   )
 }
 
-function EvaluationResult({ status, data, isOutdated, errorMessage }: { status: EvaluationStatus; data: EvaluationResultData | null; isOutdated: boolean; errorMessage: string }) {
-  if (status === 'evaluated' && data) {
-    const details = data.feedbackDetails
-    const practicesApplied = details?.goodPracticesApplied ?? []
-    const practicesMissing = details?.goodPracticesMissing ?? []
 
-    return (
-      <section className={`result-panel ${data.isCompliant ? 'result-success' : 'result-attention'}`} aria-live="polite">
-        <div className="result-icon-wrap">
-          {data.isCompliant ? <CheckCircle2 size={19} className="text-[#3b8874]" /> : <AlertCircle size={19} className="text-[#b56b24]" />}
-        </div>
-        <div>
-          <p className="result-title">
-            {data.isCompliant ? 'Tu solución cumple con el enunciado' : 'Tu solución aún no cumple con el enunciado'}
-          </p>
-          <p className="result-copy">{data.summary}</p>
 
-          {data.mode === 'mock' && (
-            <p className="result-mode-badge">Modo de prueba · sin IA</p>
-          )}
 
-          {data.requirements.length > 0 && (
-            <ul className="requirement-list">
-              {data.requirements.map((requirement, index) => (
-                <li key={index} className={requirement.met ? 'requirement-met' : 'requirement-unmet'}>
-                  {requirement.met ? <CheckCircle2 size={14} /> : <X size={14} />}
-                  <div>
-                    <p className="requirement-title">{requirement.description}</p>
-                    <p className="requirement-evidence">{requirement.evidence}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {details && (
-            <ul className="result-details">
-              {details.logic && <li><strong>Lógica:</strong> {details.logic}</li>}
-              {details.structure && <li><strong>Estructura:</strong> {details.structure}</li>}
-              {practicesApplied.length > 0 && <li><strong>Buenas prácticas aplicadas:</strong> {practicesApplied.join(', ')}</li>}
-              {practicesMissing.length > 0 && <li><strong>Buenas prácticas por mejorar:</strong> {practicesMissing.join(', ')}</li>}
-            </ul>
-          )}
-
-          {isOutdated && (
-            <p className="result-outdated">
-              Modificaste el enunciado o el código después de esta evaluación. Envíalo de nuevo para actualizar el resultado.
-            </p>
-          )}
-        </div>
-      </section>
-    )
-  }
-
-  if (status === 'error') {
-    return (
-      <section className="result-panel result-attention" aria-live="polite">
-        <div className="result-icon-wrap"><AlertCircle size={19} className="text-[#b56b24]" /></div>
-        <div>
-          <p className="result-title">No se pudo completar la evaluación</p>
-          <p className="result-copy">{errorMessage}</p>
-        </div>
-      </section>
-    )
-  }
-
-  if (status === 'invalid') {
-    return (
-      <section className="result-panel result-attention" aria-live="polite">
-        <div className="result-icon-wrap"><AlertCircle size={19} className="text-[#b56b24]" /></div>
-        <div>
-          <p className="result-title">Hay algunos aspectos por revisar</p>
-          <p className="result-copy">Revisa los campos marcados antes de enviar tu solución para evaluación.</p>
-        </div>
-      </section>
-    )
-  }
-
-  return (
-    <section className="result-panel result-idle">
-      <div className="result-icon-wrap"><Sparkles size={18} className="text-slate-500" /></div>
-      <div>
-        <p className="result-title">Resultado de la evaluación</p>
-        <p className="result-copy">Escribe el enunciado y tu código, y envíalos para saber si tu solución cumple con lo solicitado.</p>
-      </div>
-    </section>
-  )
-}
-
-const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
-  Python: ['.py'],
-  JavaScript: ['.js'],
-  Java: ['.java'],
-  'C++': ['.cpp', '.cc'],
-  C: ['.c'],
-}
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -564,12 +420,20 @@ function App() {
 
   const [statement, setStatement] = useState(() => (settings.saveDraft ? loadDraft() : ''))
   useEffect(() => {
-    if (settings.saveDraft) saveDraft(statement)
-    else clearDraft()
+    if (settings.saveDraft) {
+      saveDraft(statement)
+    } else {
+      clearDraft()
+    }
   }, [statement, settings.saveDraft])
 
-  useEffect(() => saveSettings(settings), [settings])
-  useEffect(() => saveHistory(history), [history])
+  useEffect(() => {
+    saveSettings(settings)
+  }, [settings])
+
+  useEffect(() => {
+    saveHistory(history)
+  }, [history])
 
   const [language, setLanguage] = useState(settings.defaultLanguage)
   const [code, setCode] = useState('')
@@ -582,6 +446,13 @@ function App() {
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
   const [fileError, setFileError] = useState('')
 
+  const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
+    Python: ['.py'],
+    JavaScript: ['.js'],
+    Java: ['.java'],
+    'C++': ['.cpp', '.cc'],
+    C: ['.c'],
+  }
   const fileName = uploadedFileName ?? `solution${LANGUAGE_EXTENSIONS[language]?.[0] ?? '.txt'}`
 
   const handleClear = () => {
@@ -610,7 +481,7 @@ function App() {
     pendingFocus.current = false
     statementRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     statementRef.current?.focus({ preventScroll: true })
-  })
+  }, [activeNav])
 
   const notify = (notification: Omit<AppNotification, 'id' | 'date' | 'read'>) => {
     setNotifications((current) => [
@@ -718,17 +589,16 @@ function App() {
 
   return (
     <div className="app-shell">
-      <Sidebar
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        activeNav={activeNav}
-        onNavigate={handleNavigate}
-        displayName={settings.displayName}
-      />
+        <Sidebar
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          activeNav={activeNav}
+          onNavigate={handleNavigate}
+          displayName={settings.displayName}
+        />
 
       <div className="main-panel">
         <Header
-          onMenu={() => setSidebarOpen(true)}
           displayName={settings.displayName}
           notifications={notifications}
           onOpenNotifications={() => setNotifications((current) => current.map((notification) => ({ ...notification, read: true })))}

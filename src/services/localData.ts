@@ -63,7 +63,7 @@ const remove = (key: string) => {
 // --- Borrador del enunciado (RF-1) ---
 // Se guarda como texto plano para seguir leyendo los borradores creados antes de este módulo.
 
-export const loadDraft = () => {
+export const loadDraft = (): string => {
   try {
     return localStorage.getItem(KEYS.draft) ?? ''
   } catch {
@@ -71,11 +71,11 @@ export const loadDraft = () => {
   }
 }
 
-export const saveDraft = (statement: string) => {
+export const saveDraft = (statement: string): void => {
   try {
     localStorage.setItem(KEYS.draft, statement)
   } catch {
-    // Ignorado.
+    // Ignorado: no se pudo persistir el borrador
   }
 }
 
