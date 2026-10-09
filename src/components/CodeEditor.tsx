@@ -1,13 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Check, Copy, Upload } from 'lucide-react'
-
-const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
-  Python: ['.py'],
-  JavaScript: ['.js'],
-  Java: ['.java'],
-  'C++': ['.cpp', '.cc'],
-  C: ['.c'],
-}
+import { LANGUAGE_EXTENSIONS } from '../../shared/evaluation.ts'
 
 interface CodeEditorProps {
   code: string

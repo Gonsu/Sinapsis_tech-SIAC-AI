@@ -21,6 +21,8 @@ import {
   UserRound,
 } from 'lucide-react'
 import {
+  LANGUAGE_EXTENSIONS,
+  MAX_STATEMENT_LENGTH,
   MIN_STATEMENT_LENGTH,
   SUPPORTED_LANGUAGES,
   validateEvaluationInput,
@@ -447,13 +449,6 @@ function App() {
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
   const [fileError, setFileError] = useState('')
 
-  const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
-    Python: ['.py'],
-    JavaScript: ['.js'],
-    Java: ['.java'],
-    'C++': ['.cpp', '.cc'],
-    C: ['.c'],
-  }
   const fileName = uploadedFileName ?? `solution${LANGUAGE_EXTENSIONS[language]?.[0] ?? '.txt'}`
 
   const handleClear = () => {
@@ -509,13 +504,21 @@ function App() {
     clearAllLocalData()
     setHistory([])
     setSettings(DEFAULT_SETTINGS)
+    setStatement('')
+    setCode('')
+    setErrors({})
+    setEvaluationData(null)
+    setEvaluationError('')
+    setStatus('idle')
+    setIsOutdated(false)
   }
 
   const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
-    const extension = '.' + file.name.split('.').pop()?.toLowerCase()
+    const dotIndex = file.name.lastIndexOf('.')
+    const extension = dotIndex === -1 ? '' : file.name.slice(dotIndex).toLowerCase()
     const allowedExtensions = LANGUAGE_EXTENSIONS[language] ?? []
 
     if (!allowedExtensions.includes(extension)) {
@@ -544,7 +547,7 @@ function App() {
   }
 
   const handleEvaluate = async () => {
-    const nextErrors = validateEvaluationInput(statement, code)
+    const nextErrors = validateEvaluationInput(statement, code, language)
     setErrors(nextErrors)
     setEvaluationError('')
 
@@ -623,12 +626,12 @@ function App() {
                       <p>Describe qué debe resolver tu código.</p>
                     </div>
                   </div>
-                  <span className="counter-badge">{statement.length}/2000</span>
+                  <span className="counter-badge">{statement.length}/{MAX_STATEMENT_LENGTH}</span>
                 </div>
 
                 <textarea
                   ref={statementRef}
-                  maxLength={2000}
+                  maxLength={MAX_STATEMENT_LENGTH}
                   value={statement}
                   onChange={(event) => {
                     setStatement(event.target.value)
@@ -639,7 +642,7 @@ function App() {
                   className={`input-field ${errors.statement ? 'input-error' : ''}`}
                 />
 
-                <span className="counter-badge mobile-counter">{statement.length}/2000</span>
+                <span className="counter-badge mobile-counter">{statement.length}/{MAX_STATEMENT_LENGTH}</span>
 
                 {!errors.statement && statement.trim().length > 0 && statement.trim().length < MIN_STATEMENT_LENGTH && (
                   <p className="field-hint">
@@ -669,10 +672,17 @@ function App() {
                     onChange={(item) => {
                       setLanguage(item)
                       setFileError('')
+                      setErrors((current) => ({ ...current, language: undefined }))
                       setIsOutdated(true)
                     }}
                   />
                 </div>
+
+                {errors.language && (
+                  <p className="field-error">
+                    <AlertCircle size={14} />{errors.language}
+                  </p>
+                )}
 
                 <CodeEditor
                   code={code}

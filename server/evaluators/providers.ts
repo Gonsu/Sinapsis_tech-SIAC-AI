@@ -24,7 +24,11 @@ const providers = {
   },
 }
 
-const PROVIDER_NAMES = Object.keys(providers)
+type ProviderName = keyof typeof providers
+
+const PROVIDER_NAMES = Object.keys(providers) as ProviderName[]
+
+const isProviderName = (value: string): value is ProviderName => Object.hasOwn(providers, value)
 
 /**
  * AI_PROVIDER fuerza un proveedor; si no se indica, se usa el primero con clave.
@@ -33,10 +37,10 @@ const PROVIDER_NAMES = Object.keys(providers)
 export const createEvaluator = (env: Env): CodeEvaluator => {
   const requested = read(env, 'AI_PROVIDER')?.toLowerCase()
   if (requested) {
-    if (!Object.hasOwn(providers, requested as any)) {
+    if (!isProviderName(requested)) {
       throw new Error(`AI_PROVIDER="${requested}" no es válido. Usa: ${PROVIDER_NAMES.join(', ')}.`)
     }
-    const evaluator = providers[requested as keyof typeof providers](env)
+    const evaluator = providers[requested](env)
     if (!evaluator) throw new Error(`AI_PROVIDER="${requested}" requiere configurar su clave de API en el archivo .env.`)
     return evaluator
   }

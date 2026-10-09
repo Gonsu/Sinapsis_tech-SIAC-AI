@@ -1,4 +1,4 @@
-import { SUPPORTED_LANGUAGES, type EvaluationResultData } from '../../shared/evaluation.ts'
+import { isSupportedLanguage, type EvaluationResultData } from '../../shared/evaluation.ts'
 
 // Datos que se guardan solo en este navegador (localStorage).
 // Todas las lecturas y escrituras toleran que localStorage no esté disponible (modo privado, bloqueado, etc.).
@@ -86,7 +86,7 @@ export const clearDraft = () => remove(KEYS.draft)
 export const loadSettings = (): Settings => {
   const stored = read<Partial<Settings>>(KEYS.settings, {})
   const settings = { ...DEFAULT_SETTINGS, ...stored }
-  if (!SUPPORTED_LANGUAGES.includes(settings.defaultLanguage as (typeof SUPPORTED_LANGUAGES)[number])) {
+  if (!isSupportedLanguage(settings.defaultLanguage)) {
     settings.defaultLanguage = DEFAULT_SETTINGS.defaultLanguage
   }
   return settings

@@ -2,6 +2,18 @@ import type { EvaluationInput, EvaluationResultData } from '../../shared/evaluat
 
 const REQUEST_TIMEOUT_MS = 120_000
 
+// Comprueba que el servidor devolvió la forma esperada antes de usarla en la interfaz.
+const isEvaluationResult = (value: unknown): value is EvaluationResultData => {
+  if (typeof value !== 'object' || value === null) return false
+  const result = value as Partial<EvaluationResultData>
+  return (
+    (result.mode === 'ai' || result.mode === 'mock') &&
+    typeof result.isCompliant === 'boolean' &&
+    typeof result.summary === 'string' &&
+    Array.isArray(result.requirements)
+  )
+}
+
 // RF-3: envía el enunciado y el código al servidor Express, que hace el análisis (RF-5).
 export async function analyzeCodeCompliance(input: EvaluationInput): Promise<EvaluationResultData> {
   let response: Response
@@ -30,5 +42,9 @@ export async function analyzeCodeCompliance(input: EvaluationInput): Promise<Eva
     throw new Error(message)
   }
 
-  return data as EvaluationResultData
+  if (!isEvaluationResult(data)) {
+    throw new Error('El servidor devolvió una respuesta con un formato inesperado. Intenta nuevamente.')
+  }
+
+  return data
 }

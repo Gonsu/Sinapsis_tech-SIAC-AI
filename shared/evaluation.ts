@@ -2,6 +2,20 @@
 
 export const SUPPORTED_LANGUAGES = ['Python', 'JavaScript', 'Java', 'C++', 'C'] as const
 
+export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number]
+
+// Extensiones aceptadas por el cargador de archivos del editor (RF-2).
+export const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
+  Python: ['.py'],
+  JavaScript: ['.js'],
+  Java: ['.java'],
+  'C++': ['.cpp', '.cc'],
+  C: ['.c'],
+}
+
+export const isSupportedLanguage = (value: unknown): value is SupportedLanguage =>
+  typeof value === 'string' && SUPPORTED_LANGUAGES.includes(value as SupportedLanguage)
+
 export const MIN_STATEMENT_LENGTH = 20
 export const MIN_CODE_LENGTH = 20
 export const MAX_STATEMENT_LENGTH = 2000
@@ -36,7 +50,7 @@ export interface EvaluationResultData {
 export type ValidationErrors = { statement?: string; code?: string; language?: string }
 
 // RF-4: información mínima requerida antes de iniciar la evaluación.
-export const validateEvaluationInput = (statement: unknown, code: unknown, language?: unknown): ValidationErrors => {
+export const validateEvaluationInput = (statement: unknown, code: unknown, language: unknown): ValidationErrors => {
   const errors: ValidationErrors = {}
 
   if (typeof statement !== 'string' || !statement) {
@@ -59,7 +73,7 @@ export const validateEvaluationInput = (statement: unknown, code: unknown, langu
     errors.code = `El código fuente no puede superar los ${MAX_CODE_LENGTH} caracteres.`
   }
 
-  if (language !== undefined && !SUPPORTED_LANGUAGES.includes(language as (typeof SUPPORTED_LANGUAGES)[number])) {
+  if (!isSupportedLanguage(language)) {
     errors.language = 'El lenguaje seleccionado no está soportado.'
   }
 
