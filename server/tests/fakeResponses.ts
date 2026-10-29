@@ -17,6 +17,8 @@ export const validEvaluation = {
     structure: 'Clara.',
     goodPracticesApplied: ['Uso de sum y len'],
     goodPracticesMissing: [],
+    improvements: [],
+    studySuggestions: [],
   },
 }
 

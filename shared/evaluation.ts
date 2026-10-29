@@ -33,6 +33,17 @@ export interface RequirementVerdict {
   evidence: string
 }
 
+export interface StudySuggestion {
+  topic: string
+  reason: string
+}
+
+export interface ImprovementItem {
+  aspect: string
+  why: string
+  recommendation: string
+}
+
 export interface EvaluationResultData {
   /** 'ai' cuando respondió un modelo de IA (Groq, Gemini o Claude); 'mock' cuando respondió el evaluador de pruebas. */
   mode: 'ai' | 'mock'
@@ -44,6 +55,8 @@ export interface EvaluationResultData {
     structure?: string
     goodPracticesApplied?: string[]
     goodPracticesMissing?: string[]
+    improvements?: ImprovementItem[]
+    studySuggestions?: StudySuggestion[] 
   }
 }
 

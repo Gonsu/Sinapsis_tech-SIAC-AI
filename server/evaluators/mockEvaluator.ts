@@ -1,4 +1,4 @@
-import type { EvaluationInput, EvaluationResultData, RequirementVerdict } from '../../shared/evaluation.ts'
+import type { EvaluationInput, EvaluationResultData, ImprovementItem, RequirementVerdict, StudySuggestion } from '../../shared/evaluation.ts'
 import type { CodeEvaluator } from './types.ts'
 
 // Evaluador de pruebas: permite usar la app sin clave de API.
@@ -104,6 +104,24 @@ export class MockEvaluator implements CodeEvaluator {
       summary = `El código en ${language} no evidencia ${unmet} de ${requirements.length} requisito(s) identificados en el enunciado.`
     }
 
+    const studySuggestions: StudySuggestion[] = practices.missing.map((practice) => ({
+      topic: practice,
+      reason: `No se detectó "${practice}" en tu código. Estudiar este tema te ayudará a escribir soluciones más claras y mantenibles.`,
+    }))
+
+    if (!isCompliant) {
+      studySuggestions.push({
+        topic: 'Lectura y comprensión del enunciado',
+        reason: 'Tu solución no evidencia algunos requisitos del enunciado. Practicar la descomposición de problemas en pasos concretos puede mejorar la cobertura de los requisitos.',
+      })
+    }
+
+    const improvements: ImprovementItem[] = practices.missing.map((practice) => ({
+      aspect: practice,
+      why: `Incorporar "${practice}" hace el código más legible y facilita su mantenimiento.`,
+      recommendation: `Revisa cómo se aplica "${practice}" en ${language} y refactoriza tu solución para incluirlo.`,
+    }))
+
     return {
       mode: this.mode,
       isCompliant,
@@ -118,6 +136,8 @@ export class MockEvaluator implements CodeEvaluator {
           : 'No se detectaron marcas de trabajo pendiente.',
         goodPracticesApplied: practices.applied,
         goodPracticesMissing: practices.missing,
+        improvements,
+        studySuggestions,
       },
     }
   }
