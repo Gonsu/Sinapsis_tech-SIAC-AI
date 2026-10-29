@@ -15,6 +15,8 @@ export function EvaluationResult({ status, data, isOutdated, errorMessage }: Eva
     const details = data.feedbackDetails
     const practicesApplied = details?.goodPracticesApplied ?? []
     const practicesMissing = details?.goodPracticesMissing ?? []
+    const studySuggestions = details?.studySuggestions ?? []
+    const improvements = details?.improvements ?? []
 
     return (
       <section className={`result-panel ${data.isCompliant ? 'result-success' : 'result-attention'}`} aria-live="polite">
@@ -67,6 +69,33 @@ export function EvaluationResult({ status, data, isOutdated, errorMessage }: Eva
               {practicesMissing.length > 0 && (
                 <li>
                   <strong>Buenas prácticas por mejorar:</strong> {practicesMissing.join(', ')}
+                </li>
+              )}
+              {improvements.length > 0 && (
+                <li>
+                  <strong>Aspectos a mejorar:</strong>
+                  <ul className="result-improvements">
+                    {improvements.map((item, index) => (
+                      <li key={index}>
+                        <em>{item.aspect}</em>
+                        <p><strong>¿Por qué?</strong> {item.why}</p>
+                        <p><strong>Recomendación:</strong> {item.recommendation}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              )}
+              {studySuggestions.length > 0 && (
+                <li>
+                  <strong>Sugerencias de estudio:</strong>
+                  <ul className="result-study-suggestions">
+                    {studySuggestions.map((suggestion, index) => (
+                      <li key={index}>
+                        <span className="suggestion-topic">{suggestion.topic}:</span>{' '}
+                        {suggestion.reason}
+                      </li>
+                    ))}
+                  </ul>
                 </li>
               )}
             </ul>
