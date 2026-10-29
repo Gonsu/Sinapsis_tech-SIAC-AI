@@ -57,3 +57,4 @@ El archivo `.env` está en `.gitignore`: la clave nunca debe subirse al reposito
 | RF-4 Validar información mínima | `shared/evaluation.ts` (se aplica en el navegador y en el servidor) |
 | RF-5 Analizar el código frente al enunciado | `server/evaluators/` |
 | RF-6 Informar si cumple o no | `src/App.tsx` (`EvaluationResult`, con detalle por requisito) |
+| RF-14 No asignar una calificación o nota automática al estudiante | `server/evaluators/prompt.ts` y `shared/evaluation.ts` (retroalimentación formativa sin calificación) |
